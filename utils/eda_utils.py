@@ -1,17 +1,18 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
+import math
 
-def plot_heatmap(data, title="Heatmap 1", figsize=(20,20), cmap='BrBG'):
-    """
-    Args:
-        data: dataset for heatmap.
-        figsize: figure size for the heatmap.
-        cmap: colormap for the heatmap.
-    """
+
+def plot_dist_subplots(data, columns):
+    num_columns = len(columns)
+    num_rows = math.ceil(num_columns / 2)  # calculate the number of rows needed for subplots
     
-    plt.figure(figsize=figsize)
-    sns.heatmap(data.select_dtypes("number").corr(), vmin=-1, vmax=1, center=0,annot= True, fmt="0.2f", cmap=cmap)
-    plt.title(title)
-
+    fig, axes = plt.subplots(num_rows, 2, figsize=(12, 4*num_rows))
+    axes = axes.flatten()  # flatten the axes array in case num_columns = 1
+    
+    for i, column in enumerate(columns):
+        sns.distplot(data[column], ax=axes[i])
+        axes[i].set_title(f'{column.capitalize()} Distribution')
+    
+    plt.tight_layout()
     plt.show()
-

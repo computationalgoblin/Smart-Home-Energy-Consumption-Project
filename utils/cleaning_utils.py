@@ -46,7 +46,7 @@ def clean_data(df, output_path=None):
     )
     # Export cleaned data to CSV if output_path is provided
     if output_path:
-        df.to_csv(output_path, index=False)
+        df.to_csv(output_path, index=True)
 
 
 def split_csv(input_csv, output_path1, output_path2):
@@ -59,8 +59,8 @@ def split_csv(input_csv, output_path1, output_path2):
     df2 = df.iloc[half_rows:]
     
     # Export both csv files
-    df1.to_csv(output_path1, index=False)
-    df2.to_csv(output_path2, index=False)
+    df1.to_csv(output_path1, index=True)
+    df2.to_csv(output_path2, index=True)
     
     # Delete files other than df1 and df2 from the directory
     folder_path = os.path.dirname(input_csv)
