@@ -6,14 +6,17 @@ import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.ar_model import AutoReg
+from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pmdarima.arima import auto_arima
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-from tensorflow.keras.optimizers import Adam
+from sklearn.model_selection import TimeSeriesSplit
+from scipy.stats import uniform
+import itertools
+
 
 def time_series_analysis(column):
 
@@ -237,6 +240,81 @@ def sarimax_model(train, test, data, order, seasonal_order):
     evaluation_metrics = pd.DataFrame({'R2': [r2], 'MAE': [mae], 'MAPE': [mape], 'MSE': [mse], 'RMSE': [rmse]})
     
     return model, evaluation_metrics
+
+
+def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[]):
+    # Make dataframe for training
+    trr,ter = [int(len(data) * i) for i in [train_ratio, test_ratio]]
+    train, test = data[0:trr], data[trr:]
+
+    train_df = pd.DataFrame()
+    train_df["ds"] = train.index
+    train_df['y'] = train[y].values
+    train_df["floor"] = 0
+    train_df["cap"] = 10
+    # Make dataframe for prediction
+    future_df = pd.DataFrame()
+    future_df['ds'] = test.index
+    future_df["floor"] = 0
+    future_df["cap"] = 10
+    # Add regressors
+    for i in regressors:
+        train_df[i] = train[i].values
+    # Add regressors
+    for i in regressors:
+        future_df[i] = test[i].values
+
+    # Train model with Prophet
+    prophet = Prophet(growth="logistic", weekly_seasonality=True, daily_seasonality=True, changepoint_range=0.85)
+    # Include additional regressors into the model
+    for i in regressors:
+        prophet.add_regressor(i)
+    prophet_fit = prophet.fit(train_df)
+    #df_cv = cross_validation(prophet_fit, initial="90 days", period="90 days", horizon="30 days", parallel="processes")
+    #df_p = performance_metrics(df_cv, rolling_window=1)
+
+    # Predict the future
+    predictions = prophet_fit.predict(future_df)
+
+    # Revert the transformation
+    predictions["yhat"]= np.exp(predictions["yhat"])
+    test[y] = np.exp(test[y])
+
+    # Evaluating prediction 
+    actual_values = test[y].values
+    predicted_values = predictions['yhat'].values
+
+    mae = mean_absolute_error(actual_values, predicted_values)
+    mse = mean_squared_error(actual_values, predicted_values)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(actual_values, predicted_values)
+    mape = np.mean(np.abs((actual_values - predicted_values) / actual_values)) * 100
+
+    metrics_dict = {
+        'MAE': [mae],
+        'MSE': [mse],
+        'RMSE': [rmse],
+        'R2': [r2],
+        'MAPE': [mape]
+    }
+
+    metrics_df = pd.DataFrame(metrics_dict)
+
+    # Plot predictions
+    plt.figure(figsize=(15, 5))
+    plt.plot(np.exp(data[y]).index, np.exp(data[y]).values, color='grey', label='Actual')
+    plt.plot(predictions["ds"], predictions["yhat"], color='green', label='Predictions')
+    plt.xlabel('Time')
+    plt.ylabel('kW')
+    plt.title('Actual vs. Predicted Values')
+    plt.legend()
+    plt.show()
+
+    # Model components
+    prophet.plot_components(predictions)
+    plt.show()
+
+    return prophet_fit, metrics_df#,df_p
 
 
 
