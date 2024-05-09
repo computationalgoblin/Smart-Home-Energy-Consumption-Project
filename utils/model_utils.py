@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error, r2_score
 import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMA
@@ -14,7 +15,14 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pmdarima.arima import auto_arima
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import LSTM
+from keras.layers import Dense, Dropout
+from keras.layers import Bidirectional
 from scipy.stats import uniform
+from changefinder import ChangeFinder
+from scipy import stats
 import itertools
 
 
@@ -65,6 +73,32 @@ def time_series_analysis(column):
     else:
         print("The time series is not stationary (cannot reject the null hypothesis)")
     return results
+
+
+def time_series_analysis_dataframe(dataframe):
+    results_dict = {}
+    
+    for column in dataframe.columns:
+
+        adf_result = adfuller(dataframe[column])
+        is_stationary = adf_result[1] <= 0.05
+        
+        results_dict[column] = {
+            'ADF Statistic': adf_result[0],
+            'p-value': adf_result[1],
+            'Critical Value (1%)': adf_result[4]['1%'],
+            'Critical Value (5%)': adf_result[4]['5%'],
+            'Critical Value (10%)': adf_result[4]['10%'],
+            'Stationary': is_stationary
+        }
+        
+        if is_stationary:
+            print(f"The time series in column '{column}' is stationary (reject the null hypothesis)")
+        else:
+            print(f"The time series in column '{column}' is not stationary (cannot reject the null hypothesis)")
+    
+    results_df = pd.DataFrame.from_dict(results_dict, orient='index')
+    return results_df
 
 
 def acf_pacf_test(data):
@@ -251,12 +285,12 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
     train_df["ds"] = train.index
     train_df['y'] = train[y].values
     train_df["floor"] = 0
-    train_df["cap"] = 10
+    train_df["cap"] = 20
     # Make dataframe for prediction
     future_df = pd.DataFrame()
     future_df['ds'] = test.index
     future_df["floor"] = 0
-    future_df["cap"] = 10
+    future_df["cap"] = 20
     # Add regressors
     for i in regressors:
         train_df[i] = train[i].values
@@ -265,20 +299,18 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
         future_df[i] = test[i].values
 
     # Train model with Prophet
-    prophet = Prophet(growth="logistic", weekly_seasonality=True, daily_seasonality=True, changepoint_range=0.85)
+    prophet = Prophet(growth="flat", weekly_seasonality=True, daily_seasonality=True, changepoint_range=0.95,changepoint_prior_scale=0.5, seasonality_prior_scale=15)
     # Include additional regressors into the model
     for i in regressors:
         prophet.add_regressor(i)
     prophet_fit = prophet.fit(train_df)
-    #df_cv = cross_validation(prophet_fit, initial="90 days", period="90 days", horizon="30 days", parallel="processes")
-    #df_p = performance_metrics(df_cv, rolling_window=1)
 
     # Predict the future
     predictions = prophet_fit.predict(future_df)
 
     # Revert the transformation
-    predictions["yhat"]= np.exp(predictions["yhat"])
-    test[y] = np.exp(test[y])
+    predictions["yhat"]= predictions["yhat"]#np.exp()
+    test[y] = test[y]#np.exp()
 
     # Evaluating prediction 
     actual_values = test[y].values
@@ -302,7 +334,7 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
 
     # Plot predictions
     plt.figure(figsize=(15, 5))
-    plt.plot(np.exp(data[y]).index, np.exp(data[y]).values, color='grey', label='Actual')
+    plt.plot(test.index, test[y], color='grey', label='Actual')#np.exp()
     plt.plot(predictions["ds"], predictions["yhat"], color='green', label='Predictions')
     plt.xlabel('Time')
     plt.ylabel('kW')
@@ -314,7 +346,172 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
     prophet.plot_components(predictions)
     plt.show()
 
-    return prophet_fit, metrics_df#,df_p
+    return prophet_fit, metrics_df
 
 
+def lstm_implementation_pipeline(sequence, timesteps, train_size=0.80, lstm_units=50, activation='relu', optimizer='adam', loss='mse', epochs=200, verbose=0):
+    X = [sequence[i:i+timesteps] for i in range(len(sequence)-timesteps)]
+    Y = [sequence[i+timesteps] for i in range(len(sequence)-timesteps)]
+    X, Y = np.array(X), np.array(Y)
+    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+    size = int(len(sequence) * train_size)
+    X_train, Y_train = X[:size], Y[:size]
+    X_test, Y_test = X[size:], Y[size:]
 
+    # Model architecture
+    model = Sequential()
+    model.add(LSTM(lstm_units, activation=activation, input_shape=(timesteps, 1)))
+    model.add(Dense(1))
+    model.compile(optimizer=optimizer, loss=loss)
+
+    # Model training
+    model.fit(X_train, Y_train, epochs=epochs, verbose=verbose)
+
+    # Prediction
+    Train_pred = model.predict(X_train, verbose=0)
+    Y_pred = model.predict(X_test, verbose=0)
+
+    Train_pred_series = pd.Series(Train_pred.flatten().tolist(), index=sequence.index[:size])
+    Y_pred_series = pd.Series(Y_pred.flatten().tolist(), index=sequence.index[size+timesteps:])
+
+    # Plot
+    plt.figure(figsize=(15, 4))
+    plt.plot(sequence.index[:len(Train_pred_series)], sequence.values[:len(Train_pred_series)], c='lightgrey', label='train data')
+    plt.plot(Train_pred_series.index, Train_pred_series.values, c='lightgreen', label='train prediction')
+
+    # Plot test data and model prediction on test data
+    plt.plot(sequence.index[len(Train_pred_series)+timesteps:], sequence.values[len(Train_pred_series)+timesteps:], c='grey', label='test data')
+    plt.plot(Y_pred_series.index, Y_pred_series.values, c='green', label='model prediction')
+
+    # Adding focus plot for test data and model prediction on test data
+    plt.figure(figsize=(15, 4))
+    plt.plot(sequence.index[len(Train_pred_series)+timesteps:], sequence.values[len(Train_pred_series)+timesteps:], c='grey', label='test data')
+    plt.plot(Y_pred_series.index, Y_pred_series.values, c='green', label='model prediction')
+
+    plt.legend()
+    plt.show()
+
+    # Evaluation
+    mse = mean_squared_error(Y_pred, sequence.values[size+timesteps:])
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(sequence.values[size+timesteps:], Y_pred)
+    mape = np.mean(np.abs(Y_pred - sequence.values[size+timesteps:]) / np.abs(sequence.values[size+timesteps:]))
+    r2 = r2_score(sequence.values[size+timesteps:], Y_pred)
+    print('MSE: %.5f' % mse)
+    print('RMSE: %.5f' % rmse)
+    print('MAE: %.3f' % mae)
+    print('MAPE: %.3f' % mape)
+    print('R^2 score: %.3f' % r2)
+
+
+def lstm_multivariate_implementation_pipeline(data, n_past=1, n_future=1, epochs=60, verbose=0):
+
+    # Splitting data into training and testing sets
+    train_size = int(len(data) * 0.7)
+    train_data, test_data = data[:train_size], data[train_size:]
+    X_train = []
+    X_test = []
+    Y_train = []
+    Y_test = []
+
+    # Creating sequences of past and future data for training set
+    for i in range(n_past, len(train_data)-n_future+1):
+        X_train.append(train_data.iloc[i-n_past:i, 0:data.shape[1]])
+        Y_train.append(train_data.iloc[i+n_future-1:i+n_future, 0])
+    
+    # Creating sequences of past and future data for testing set
+    for i in range(n_past, len(test_data)-n_future+1):
+        X_test.append(test_data.iloc[i-n_past:i, 0:test_data.shape[1]])
+        Y_test.append(test_data.iloc[i+n_future-1:i+n_future, 0])
+
+    # Converting lists to numpy arrays
+    X_train, Y_train = np.array(X_train), np.array(Y_train)
+    X_test, Y_test = np.array(X_test), np.array(Y_test)
+
+    # Building the LSTM model
+    model = Sequential([
+        LSTM(25, activation='relu', return_sequences=False, input_shape=(X_train.shape[1], X_train.shape[2])),
+        Dense(Y_train.shape[1])
+    ])
+    model.compile(optimizer='adam', loss='mse')
+
+    # Training the model
+    model.fit(X_train, Y_train, epochs=epochs, verbose=verbose)
+
+    # Predictions on training and testing sets
+    Train_pred = model.predict(X_train, verbose=0)
+    Y_pred = model.predict(X_test, verbose=0)
+
+    # Converting predictions to Pandas Series
+    Y_pred_series = pd.Series(Y_pred.flatten(), index=data['use'][train_size:-n_past].index)
+    Train_pred_series = pd.Series(Train_pred.flatten(), index=data['use'][n_past:train_size].index)
+
+    # Extracting true values for testing set
+    Y_test = data['use'][train_size:-n_past]
+
+    # Plotting training and testing predictions
+    plt.figure(figsize=(15, 5))
+    plt.plot(data['use'][:-n_past], c='grey', label='True Values')
+    plt.plot(Y_pred_series, c='green', label='Predicted Values (Test)')
+    plt.plot(Train_pred_series, c='lightgreen', label='Predicted Values (Train)')
+    plt.legend()
+
+    # Plotting only test predictions
+    plt.figure(figsize=(15, 5))
+    plt.plot(data['use'][train_size:-n_past], c='grey', label='True Values')
+    plt.plot(Y_pred_series, c='green', label='Predicted Values')
+    plt.legend()
+    plt.title('Test Prediction')
+
+    # Calculating evaluation metrics
+    mse = mean_squared_error(Y_pred, Y_test)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(Y_test, Y_pred)
+    mape = np.mean(np.abs(Y_pred[:,0] - Y_test.values) / np.abs(Y_test.values))
+    r2 = r2_score(Y_test, Y_pred)
+
+    # Creating DataFrame with metrics
+    metrics_df = pd.DataFrame({'MSE': mse, 'RMSE': rmse, 'MAE': mae, 'MAPE': mape, 'R^2 Score': r2}, index=[0])
+
+    return metrics_df   
+
+
+def anomaly_detector(data, ad_r=0.01, ad_order=1, ad_smooth=10):
+    # Initialize ChangeFinder object with custom parameters
+    cf = ChangeFinder(r=ad_r, order=ad_order, smooth=ad_smooth)
+    
+    # Compute change score
+    change_score = [cf.update(i) for i in data]
+    
+    # Calculate quartiles and upper threshold
+    ad_score_q1 = np.percentile(change_score, 25) 
+    ad_score_q3 = np.percentile(change_score, 75) 
+    thr_upper = ad_score_q3 + (ad_score_q3 - ad_score_q1) * 3
+    
+    plt.figure(figsize=(12, 6))
+    
+    # Change score plot
+    plt.subplot(2, 1, 1)
+    sns.lineplot(data=change_score)
+    plt.axhline(y=thr_upper, color='g', linestyle='--')
+    plt.title(f"Change Score & Threshold")
+    plt.xlabel('Index')
+    plt.ylabel('Change Score')
+    
+    # Detected points plot
+    plt.subplot(2, 1, 2)
+    sns.lineplot(data=data)
+    anom_points = [data.index[i] for i, score in enumerate(change_score) if score > thr_upper]
+    plt.scatter(anom_points, data[data.index.isin(anom_points)], color='g', label="Anomalies detected")
+    plt.title(f"Detected Anomalies")
+    plt.xlabel('Index')
+    plt.ylabel('Value')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Construct DataFrame of changepoints
+    changepoints = pd.DataFrame({'Date': anom_points})
+    
+    return changepoints
