@@ -276,9 +276,9 @@ def sarimax_model(train, test, data, order, seasonal_order):
     return model, evaluation_metrics
 
 
-def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[]):
+def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', changepoint_list=None, regressors=[]):
     # Make dataframe for training
-    trr,ter = [int(len(data) * i) for i in [train_ratio, test_ratio]]
+    trr, ter = [int(len(data) * i) for i in [train_ratio, test_ratio]]
     train, test = data[0:trr], data[trr:]
 
     train_df = pd.DataFrame()
@@ -298,8 +298,14 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
     for i in regressors:
         future_df[i] = test[i].values
 
+    # Filter changepoints within training data range
+    if changepoint_list is not None:
+        changepoints_filtered = changepoint_list[(changepoint_list >= train.index.min()) & (changepoint_list <= train.index.max())]
+    else:
+        changepoints_filtered = None
+
     # Train model with Prophet
-    prophet = Prophet(growth="flat", weekly_seasonality=True, daily_seasonality=True, changepoint_range=0.95,changepoint_prior_scale=0.5, seasonality_prior_scale=15)
+    prophet = Prophet(growth="flat", weekly_seasonality=True, daily_seasonality=True, changepoints=changepoints_filtered, changepoint_prior_scale=0.5, seasonality_prior_scale=15)
     # Include additional regressors into the model
     for i in regressors:
         prophet.add_regressor(i)
@@ -309,10 +315,10 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
     predictions = prophet_fit.predict(future_df)
 
     # Revert the transformation
-    predictions["yhat"]= predictions["yhat"]#np.exp()
-    test[y] = test[y]#np.exp()
+    predictions["yhat"] = predictions["yhat"]  # np.exp()
+    test[y] = test[y]  # np.exp()
 
-    # Evaluating prediction 
+    # Evaluating prediction
     actual_values = test[y].values
     predicted_values = predictions['yhat'].values
 
@@ -334,7 +340,7 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', regressors=[])
 
     # Plot predictions
     plt.figure(figsize=(15, 5))
-    plt.plot(test.index, test[y], color='grey', label='Actual')#np.exp()
+    plt.plot(test.index, test[y], color='grey', label='Actual')  # np.exp()
     plt.plot(predictions["ds"], predictions["yhat"], color='green', label='Predictions')
     plt.xlabel('Time')
     plt.ylabel('kW')
