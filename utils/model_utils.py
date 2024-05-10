@@ -8,22 +8,16 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.ar_model import AutoReg
 from prophet import Prophet
-from prophet.diagnostics import cross_validation, performance_metrics
+
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pmdarima.arima import auto_arima
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import LSTM
-from keras.layers import Dense, Dropout
-from keras.layers import Bidirectional
-from scipy.stats import uniform
+from keras.layers import Dense
 from changefinder import ChangeFinder
 from scipy import stats
-import itertools
 
 
 def time_series_analysis(column):
@@ -35,16 +29,15 @@ def time_series_analysis(column):
     adf_result = adfuller(column)
 
     plt.figure(figsize=(15, 5))
-    plt.plot(column.diff().dropna(), color='gray', alpha=0.5, label='Differenced Series')
-    plt.plot(roll_mean.diff().dropna(), color='blue', label='Rolling Mean')
-    plt.plot(roll_std.diff().dropna(), color='green', label='Rolling Std')
+    plt.plot(column.diff().dropna(), color='gray', alpha=0.5, label='Differenced Series') #Transformed data
+    plt.plot(roll_mean.diff().dropna(), color='green', label='Rolling Mean')
+    plt.plot(roll_std.diff().dropna(), color='black', label='Rolling Std')
     plt.legend()
     plt.title('Differenced Time Series with Rolling Mean and Standard Deviation')
     plt.xlabel('Date')
     plt.ylabel('Differenced Value')
     plt.show()
-
-    
+  
     # Step 2: Test for seasonality using seasonal decomposition and plot the result
     decomposition = seasonal_decompose(column, model='additive')
     fig = plt.figure()  
@@ -55,15 +48,13 @@ def time_series_analysis(column):
     
     plt.figure(figsize=(15, 5))
     plt.plot(column, color='gray', alpha=0.5, label='Original')
-    plt.plot(roll_mean, color='blue', label='Rolling Mean')
-    plt.plot(roll_std, color='green', label='Rolling Std')
+    plt.plot(roll_mean, color='green', label='Rolling Mean')
+    plt.plot(roll_std, color='black', label='Rolling Std')
     plt.legend()
     plt.title('Rolling Mean and Standard Deviation')
     plt.xlabel('Date')
     plt.ylabel('Value')
     plt.show()
-    
-
     
     # Step 3: DataFrame with the results of both tests
     results = pd.DataFrame(index=['ADF Statistic', 'p-value', 'Critical Value (1%)', 'Critical Value (5%)', 'Critical Value (10%)'])
@@ -102,10 +93,7 @@ def time_series_analysis_dataframe(dataframe):
 
 
 def acf_pacf_test(data):
-    """
-    Args:
-    data: time series data.
-    """
+
     # Plot ACF and PACF
     fig, ax = plt.subplots(2, 1, figsize=(15, 5))
     plot_acf(data, ax=ax[0], lags= 40)
@@ -114,29 +102,17 @@ def acf_pacf_test(data):
     plt.show()
 
 
-def ar_baseline_model(train, test, data, lags):
-    """
-    Args:
-    train: train data
-    test: test data
-    data: time series data of the whole variable.
-    lags : order of the AR model args.
-    """
-    from statsmodels.tsa.ar_model import AutoReg
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-    import numpy as np
+def ar_baseline_model(train, test, data, lags, trend):
 
     # Fit AR model
-    model = AutoReg(train, lags=lags)
+    model = AutoReg(train, lags=lags, trend="c")
     model_fit = model.fit()
     
     # Plot data and predictions
     plt.figure(figsize=(15,5))
-    plt.plot(data, c='grey', label='total use')
-    plt.plot(model_fit.predict(dynamic=False), c='green', label='AR Train Model')
-    plt.plot(test.index, model_fit.predict(start=len(train), end=len(train)+len(test)-1), c='blue', label='AR Predictions')
+    plt.plot(data, c='grey', label='Total Use Data')
+    plt.plot(model_fit.predict(dynamic=False), c='lightgreen', label='AR Train Model')
+    plt.plot(test.index, model_fit.predict(start=len(train), end=len(train)+len(test)-1), c='green', label='AR Predictions')
     plt.legend(fontsize=10)
     plt.ylabel('kW')
     plt.xlabel('Time')
@@ -163,18 +139,6 @@ def ar_baseline_model(train, test, data, lags):
 
 
 def arima_model(train, test, data, order):
-    """
-    Args:
-    train: train data
-    test: test data
-    data: time series data of the whole variable.
-    order : tuple of order for the ARMA model (p, d, q).
-    """
-    from statsmodels.tsa.arima.model import ARIMA
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-    import numpy as np
 
     # Fit ARIMA model
     model = ARIMA(train, order=order)
@@ -183,8 +147,8 @@ def arima_model(train, test, data, order):
     # Plot data and predictions
     plt.figure(figsize=(15,5))
     plt.plot(data, c='grey', label='Total Use')
-    plt.plot(model_fit.predict(start=1, end=len(data)), c='green', label='ARIMA Train Predictions')
-    plt.plot(test.index, model_fit.predict(start=len(train), end=len(train)+len(test)-1), c='blue', label='ARIMA Test Predictions')
+    plt.plot(model_fit.predict(start=1, end=len(data)), c='lightgreen', label='ARIMA Train Predictions')
+    plt.plot(test.index, model_fit.predict(start=len(train), end=len(train)+len(test)-1), c='green', label='ARIMA Test Predictions')
     plt.legend(fontsize=10)
     plt.ylabel('kW')
     plt.xlabel('Time')
@@ -222,15 +186,6 @@ def arima_model(train, test, data, order):
 
 def sarimax_model(train, test, data, order, seasonal_order):
 
-    """
-    Args:
-    train: train data
-    test: test data
-    data: time series data of the whole variable.
-    order : tuple of order for the ARMA model (p, d, q).
-    seasonal_order: tuple of seasonal order for the ARMA model (P, D, Q, s).
-    """
-
     # Fit SARIMAX model
     model = SARIMAX(train, order=order, seasonal_order=seasonal_order)
     model_fit = model.fit()
@@ -238,8 +193,8 @@ def sarimax_model(train, test, data, order, seasonal_order):
     # Plot data and predictions
     plt.figure(figsize=(15,5))
     plt.plot(data, c='grey', label='Total Use')
-    plt.plot(model_fit.predict(start=1, end=len(data)), c='green', label='SARIMAX Train Predictions')
-    plt.plot(test.index, model_fit.predict(start=len(train), end=len(train)+len(test)-1), c='blue', label='SARIMAX Test Predictions')
+    plt.plot(model_fit.predict(start=1, end=len(data)), c='lightgreen', label='SARIMAX Train Predictions')
+    plt.plot(test.index, model_fit.predict(start=len(train), end=len(train)+len(test)-1), c='green', label='SARIMAX Test Predictions')
     plt.legend(fontsize=10)
     plt.ylabel('kW')
     plt.xlabel('Time')
@@ -254,9 +209,9 @@ def sarimax_model(train, test, data, order, seasonal_order):
     
     # Plot predictions and residuals
     plt.figure(figsize=(15,5))
-    plt.plot(test.index, predictions, c='grey', label='Predictions')
-    plt.plot(test.index, test.values, c='blue', label='Actual')
-    plt.plot(test.index, residuals, c='green', label='Residuals')
+    plt.plot(test.index, predictions, c='green', label='Predictions')
+    plt.plot(test.index, test.values, c='grey', label='Actual')
+    plt.plot(test.index, residuals, c='black', label='Residuals')
     plt.axhline(y=0, color='black', linestyle='--')
     plt.legend(fontsize=10)
     plt.ylabel('Values')
@@ -277,6 +232,7 @@ def sarimax_model(train, test, data, order, seasonal_order):
 
 
 def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', changepoint_list=None, regressors=[]):
+
     # Make dataframe for training
     trr, ter = [int(len(data) * i) for i in [train_ratio, test_ratio]]
     train, test = data[0:trr], data[trr:]
@@ -286,14 +242,17 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', changepoint_li
     train_df['y'] = train[y].values
     train_df["floor"] = 0
     train_df["cap"] = 20
+
     # Make dataframe for prediction
     future_df = pd.DataFrame()
     future_df['ds'] = test.index
     future_df["floor"] = 0
     future_df["cap"] = 20
+
     # Add regressors
     for i in regressors:
         train_df[i] = train[i].values
+
     # Add regressors
     for i in regressors:
         future_df[i] = test[i].values
@@ -305,7 +264,8 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', changepoint_li
         changepoints_filtered = None
 
     # Train model with Prophet
-    prophet = Prophet(growth="flat", weekly_seasonality=True, daily_seasonality=True, changepoints=changepoints_filtered, changepoint_prior_scale=0.5, seasonality_prior_scale=15)
+    prophet = Prophet(growth="flat", weekly_seasonality=True, daily_seasonality=True, changepoint_range=0.9, changepoint_prior_scale=0.5, seasonality_prior_scale=15)
+
     # Include additional regressors into the model
     for i in regressors:
         prophet.add_regressor(i)
@@ -313,10 +273,6 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', changepoint_li
 
     # Predict the future
     predictions = prophet_fit.predict(future_df)
-
-    # Revert the transformation
-    predictions["yhat"] = predictions["yhat"]  # np.exp()
-    test[y] = test[y]  # np.exp()
 
     # Evaluating prediction
     actual_values = test[y].values
@@ -356,6 +312,8 @@ def prophet_model(data, train_ratio=0.8, test_ratio=0.2, y='use', changepoint_li
 
 
 def lstm_implementation_pipeline(sequence, timesteps, train_size=0.80, lstm_units=50, activation='relu', optimizer='adam', loss='mse', epochs=200, verbose=0):
+
+    # Splitting data into training and testing sets
     X = [sequence[i:i+timesteps] for i in range(len(sequence)-timesteps)]
     Y = [sequence[i+timesteps] for i in range(len(sequence)-timesteps)]
     X, Y = np.array(X), np.array(Y)
@@ -483,6 +441,7 @@ def lstm_multivariate_implementation_pipeline(data, n_past=1, n_future=1, epochs
 
 
 def anomaly_detector(data, ad_r=0.01, ad_order=1, ad_smooth=10):
+
     # Initialize ChangeFinder object with custom parameters
     cf = ChangeFinder(r=ad_r, order=ad_order, smooth=ad_smooth)
     

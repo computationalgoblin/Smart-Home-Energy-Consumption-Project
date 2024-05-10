@@ -18,12 +18,6 @@ def plot_dist_subplots(data, columns):
     plt.show()
 
 def plot_subplots(data, cols: list, freq: str = "D"):
-    """
-    Args:
-        data: the df containing the data.
-        cols: a list of column names to plot.
-        freq: the resampling frequence
-    """
     # Resample the data at a daily frequency and calculate the mean for each day
     resampled_data = data[cols].resample(freq).mean()
     
