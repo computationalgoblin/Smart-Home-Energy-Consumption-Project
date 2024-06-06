@@ -5,6 +5,7 @@ Fortunately, the rise of the Internet of Things (IoT) offers a promising opportu
 
 This project explores whether we can optimize energy consumption using IoT data through advanced data science techniques. Our key goals include forecasting energy usage and detecting anomalies to proactively manage irregular consumption, providing a foundation for developing real-time monitoring tools.
 
+![network header](assets/pr2_084C19A064DFE7EAE88C.jpg)
 ## Dataset and Variable Segmentation
 The dataset for this project can be found on [Kaggle](https://www.kaggle.com/datasets/taranvee/smart-home-dataset-with-weather-information).
 
@@ -86,9 +87,10 @@ The LSTM model captures long-term dependencies in time series data. Incorporatin
 - **R² Score**: 0.500, suggesting moderate accuracy.
 - **Enhanced Model**: Improved performance with additional variables, achieving an R² score of 0.937794.
 
+![LSTM](assets/LSTMmodel.png)
 ## Anomaly Detection
 The ChangeFinder model detects abrupt changes in time series data, identifying unusual consumption behaviours for optimization.
-
+![Change](assets/changefinder.png)
 ## Conclusion
 This project has provided valuable insights into energy consumption patterns and their relationship with meteorological variables. Through data analysis and modelling techniques, we have identified the impact of outliers on overall consumption and proposed proactive measures for optimization. Leveraging LSTM networks and anomaly detection with the ChangeFinder model, we've successfully developed predictive models capable of capturing complex consumption behaviours and external influences.
 
