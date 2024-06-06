@@ -5,6 +5,7 @@ Fortunately, the rise of the Internet of Things (IoT) offers a promising opportu
 
 This project explores whether we can optimize energy consumption using IoT data through advanced data science techniques. Our key goals include forecasting energy usage and detecting anomalies to proactively manage irregular consumption, providing a foundation for developing real-time monitoring tools.
 
+![network header](assets/pr2_084C19A064DFE7EAE88C.jpg)
 ## Dataset and Variable Segmentation
 The dataset for this project can be found on [Kaggle](https://www.kaggle.com/datasets/taranvee/smart-home-dataset-with-weather-information).
 
