@@ -87,10 +87,10 @@ The LSTM model captures long-term dependencies in time series data. Incorporatin
 - **R² Score**: 0.500, suggesting moderate accuracy.
 - **Enhanced Model**: Improved performance with additional variables, achieving an R² score of 0.937794.
 
-![LSTM](assets/LSTM\model.png)
+![LSTM](assets/LSTM%20model.png)
 ## Anomaly Detection
 The ChangeFinder model detects abrupt changes in time series data, identifying unusual consumption behaviours for optimization.
-![Change](assets/LSTM\changefinder.png)
+![Change](assets/changefinder.png)
 ## Conclusion
 This project has provided valuable insights into energy consumption patterns and their relationship with meteorological variables. Through data analysis and modelling techniques, we have identified the impact of outliers on overall consumption and proposed proactive measures for optimization. Leveraging LSTM networks and anomaly detection with the ChangeFinder model, we've successfully developed predictive models capable of capturing complex consumption behaviours and external influences.
 
