@@ -18,6 +18,8 @@ from keras.layers import LSTM
 from keras.layers import Dense
 from changefinder import ChangeFinder
 from scipy import stats
+import pickle
+import os
 
 
 def time_series_analysis(column):
@@ -437,7 +439,7 @@ def lstm_multivariate_implementation_pipeline(data, n_past=1, n_future=1, epochs
     # Creating DataFrame with metrics
     metrics_df = pd.DataFrame({'MSE': mse, 'RMSE': rmse, 'MAE': mae, 'MAPE': mape, 'R^2 Score': r2}, index=[0])
 
-    return metrics_df   
+    return Y_pred_series, model, metrics_df   
 
 
 def anomaly_detector(data, ad_r=0.01, ad_order=1, ad_smooth=10):
@@ -480,3 +482,17 @@ def anomaly_detector(data, ad_r=0.01, ad_order=1, ad_smooth=10):
     changepoints = pd.DataFrame({'Date': anom_points})
     
     return changepoints
+
+
+def save_model(model, file_path):
+    try:
+        # Append a filename to the file_path
+        file_name = "model.pkl"
+        absolute_file_path = os.path.join(file_path, file_name)
+        
+        # Save the model to a file using pickle
+        with open(absolute_file_path, 'wb') as file:
+            pickle.dump(model, file)
+        print(f"Model saved successfully to '{absolute_file_path}'.")
+    except Exception as e:
+        print(f"An error occurred while saving the model: {e}")
