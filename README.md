@@ -87,7 +87,7 @@ The LSTM model captures long-term dependencies in time series data. Incorporatin
 - **R² Score**: 0.500, suggesting moderate accuracy.
 - **Enhanced Model**: Improved performance with additional variables, achieving an R² score of 0.937794.
 
-![LSTM](assets/LSTM%20model.png)
+![LSTM](assets/LSTMmodel.png)
 ## Anomaly Detection
 The ChangeFinder model detects abrupt changes in time series data, identifying unusual consumption behaviours for optimization.
 ![Change](assets/changefinder.png)
