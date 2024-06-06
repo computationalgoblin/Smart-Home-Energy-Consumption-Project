@@ -3,7 +3,7 @@ This project aims to optimize energy consumption using IoT data through advanced
 
 ## Dataset
 
-The dataset for this project can be found on [Kaggle]((https://www.kaggle.com/datasets/taranvee/smart-home-dataset-with-weather-information)).
+The dataset for this project can be found on [Kaggle](https://www.kaggle.com/datasets/taranvee/smart-home-dataset-with-weather-information).
 
 ### Energy Variables
 
